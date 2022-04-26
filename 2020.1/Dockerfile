@@ -16,16 +16,39 @@ RUN \
   rm -rf /var/lib/apt/lists/* && \
   echo "%sudo ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
-ARG gosu_version=1.10
-RUN \
-  curl -SL "https://github.com/tianon/gosu/releases/download/${gosu_version}/gosu-$(dpkg --print-architecture)" \
-    -o /usr/local/bin/gosu && \
-  curl -SL "https://github.com/tianon/gosu/releases/download/${gosu_version}/gosu-$(dpkg --print-architecture).asc" \
-    -o /usr/local/bin/gosu.asc && \
-  gpg --keyserver ha.pool.sks-keyservers.net --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4 && \
-  gpg --verify /usr/local/bin/gosu.asc && \
-  rm -rf /usr/local/bin/gosu.asc /root/.gnupg && \
-  chmod +x /usr/local/bin/gosu
+ARG GOSU_VERSION=1.10
+RUN set -eux; \
+# save list of currently installed packages for later so we can clean up
+	savedAptMark="$(apt-mark showmanual)"; \
+	apt-get update; \
+	apt-get install -y --no-install-recommends ca-certificates wget; \
+	if ! command -v gpg; then \
+		apt-get install -y --no-install-recommends gnupg2 dirmngr; \
+	elif gpg --version | grep -q '^gpg (GnuPG) 1\.'; then \
+# "This package provides support for HKPS keyservers." (GnuPG 1.x only)
+		apt-get install -y --no-install-recommends gnupg-curl; \
+	fi; \
+	rm -rf /var/lib/apt/lists/*; \
+	\
+	dpkgArch="$(dpkg --print-architecture | awk -F- '{ print $NF }')"; \
+	wget -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch"; \
+	wget -O /usr/local/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch.asc"; \
+	\
+# verify the signature
+	export GNUPGHOME="$(mktemp -d)"; \
+	gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4; \
+	gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu; \
+	command -v gpgconf && gpgconf --kill all || :; \
+	rm -rf "$GNUPGHOME" /usr/local/bin/gosu.asc; \
+	\
+# clean up fetch dependencies
+	apt-mark auto '.*' > /dev/null; \
+	[ -z "$savedAptMark" ] || apt-mark manual $savedAptMark; \
+	apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
+	\
+	chmod +x /usr/local/bin/gosu; \
+# verify that the binary works
+	gosu nobody true
 
 # vidao
 RUN \
@@ -55,4 +78,4 @@ COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
-CMD ["/bin/bash", "-l"]
+CMD ["/bin/bash", "-c", "sleep infinity"]

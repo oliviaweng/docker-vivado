@@ -1,0 +1,9 @@
+version: '3.3'
+services:
+    vivado-2020.1:
+        # environment:
+            # - 'DISPLAY=`hostname`:0'
+        container_name: vivado
+        volumes:
+            - '$PWD:/home/user/app'
+        image: vivado-2020.1

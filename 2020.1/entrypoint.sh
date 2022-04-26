@@ -6,8 +6,8 @@ if ! grep -q "x:${UART_GROUP_ID}:" /etc/group; then
 fi
 UART_GROUP=$(grep -Po "^\\w+(?=:x:${UART_GROUP_ID}:)" /etc/group)
 
-if [[ -n "$USER_ID" ]]; then
-  useradd -m -s /bin/bash -u "$USER_ID" -o -d /home/user user
+if [[ -n "$UID" ]]; then
+  useradd -m -s /bin/bash -u "$UID" -o -d /home/user user
   usermod -aG sudo user
   usermod -aG "$UART_GROUP" user
   chown user $(tty)
